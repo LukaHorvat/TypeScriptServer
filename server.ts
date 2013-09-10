@@ -3,5 +3,5 @@
 import http = require("http");
 
 http.createServer(function (req, res) {
-	res.end("Test");
+	res.end("Test123");
 }).listen(1337);
