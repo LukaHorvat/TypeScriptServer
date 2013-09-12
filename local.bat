@@ -1,0 +1,1 @@
+tsc --out local/main.js local/main.ts --module "commonjs" 

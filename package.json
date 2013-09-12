@@ -1,0 +1,29 @@
+{
+  "name": "GameServer",
+  "version": "0.0.0",
+  "description": "Server for my game",
+  "main": "server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js"
+  },
+  "dependencies" : {
+  	"socket.io"	: "*",
+    "express"   : "*"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/LukaHorvat/TypeScriptServer.git"
+  },
+  "keywords": [
+    "typescript",
+    "javascript",
+    "pixi"
+  ],
+  "author": "Luka Horvat",
+  "license": "BSD",
+  "gitHead": "a9768125afb19160c399b198654c0c927df57c1e",
+  "bugs": {
+    "url": "https://github.com/LukaHorvat/TypeScriptServer/issues"
+  }
+}
