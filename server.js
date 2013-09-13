@@ -11,6 +11,35 @@ var tick = function () {
     for (var key in players) {
         players[key].onUpdate();
     }
+    for (var id in fireballs) {
+        fireballs[id].onUpdate();
+        if (magnitude(fireballs[id].position) > 2000) {
+            manager.sockets.emit("remove fireball", id);
+            delete fireballs[id];
+            continue;
+        } else {
+            manager.sockets.emit("fireball position", { position: fireballs[id].position, id: id });
+        }
+        var distanceCache = [];
+        var kill = false;
+        for (var key in players) {
+            var vec = sub(players[key].position, fireballs[id].position);
+            var dist = magnitude(vec);
+            if (dist < 20) {
+                kill = true;
+                distanceCache.push({ key: key, distance: 20, vector: normalize(vec) });
+            } else if (dist < 100)
+                distanceCache.push({ key: key, distance: dist, vector: normalize(vec) });
+        }
+        if (kill) {
+            for (var i = 0; i < distanceCache.length; ++i) {
+                var cache = distanceCache[i];
+                players[cache.key].velocity = add(players[cache.key].velocity, mult(cache.vector, 500 / cache.distance));
+            }
+            manager.sockets.emit("remove fireball", id);
+            delete fireballs[id];
+        }
+    }
     var timeTaken = Date.now() - startTime;
     setTimeout(tick, 16 - timeTaken);
 };
@@ -40,7 +69,38 @@ var Player = (function () {
     return Player;
 })();
 
+var Fireball = (function () {
+    function Fireball() {
+        var _this = this;
+        this.onUpdate = function () {
+            _this.position = add(_this.position, _this.velocity);
+        };
+    }
+    return Fireball;
+})();
+
 var players = {};
+var dummy = new Player();
+dummy.color = 0xFF0000;
+dummy.position = new Point(0, 0);
+dummy.velocity = new Point(0, 0);
+dummy.onUpdate = function () {
+    var player = players["dummy"];
+    var velocity = player.velocity;
+    var speed = magnitude(velocity);
+    if (speed > 0.5) {
+        velocity = sub(velocity, mult(div(velocity, speed), 0.3));
+    } else
+        velocity = new Point(0, 0);
+    player.position = add(player.position, velocity);
+    manager.sockets.emit("position", { name: "dummy", position: player.position });
+
+    player.velocity = velocity;
+};
+players["dummy"] = dummy;
+
+var fireballId = 0;
+var fireballs = {};
 
 var manager = io.listen(server);
 
@@ -48,18 +108,20 @@ manager.set("log level", 1);
 manager.sockets.on("connection", function (socket) {
     var socketName;
     var destination;
-    var velocity;
+
+    var lastShot = 0;
 
     var onUpdate = function () {
         var player = players[socketName];
+        var velocity = player.velocity;
         var speed = magnitude(velocity);
         if (destination !== undefined) {
             var moveVector = sub(destination, player.position);
-            velocity = add(velocity, mult(div(moveVector, magnitude(moveVector)), 0.3));
+            velocity = add(velocity, mult(normalize(moveVector), 0.3));
 
-            if (distance(player.position, destination) < 3)
+            if (distance(player.position, destination) < 10)
                 destination = undefined;
-            if (speed > 5) {
+            if (speed > 4) {
                 velocity = sub(velocity, mult(div(velocity, speed), 0.4));
             }
         } else {
@@ -70,6 +132,8 @@ manager.sockets.on("connection", function (socket) {
         }
         player.position = add(player.position, velocity);
         manager.sockets.emit("position", { name: socketName, position: player.position });
+
+        player.velocity = velocity;
     };
 
     socket.on("hello", function (name) {
@@ -84,11 +148,11 @@ manager.sockets.on("connection", function (socket) {
         }
 
         var player = new Player();
-        player.position = new Point(Math.random() * 200 - 100 + 400, Math.random() * 200 - 100 + 250);
+        player.position = new Point(Math.random() * 200 - 100, Math.random() * 200 - 100);
         player.onUpdate = onUpdate;
         player.color = nextColor();
+        player.velocity = new Point(0, 0);
         players[name] = player;
-        velocity = new Point(0, 0);
 
         manager.sockets.emit("new player", { name: socketName, color: player.color });
         console.log("Player " + name + " joined");
@@ -96,11 +160,30 @@ manager.sockets.on("connection", function (socket) {
 
     socket.on("disconnect", function () {
         console.log("Disconnecting " + socketName);
+        manager.sockets.emit("remove player", socketName);
         delete players[socketName];
     });
 
     socket.on("destination", function (point) {
         destination = point;
+    });
+
+    socket.on("fire", function (point) {
+        if (Date.now() - lastShot > 1000) {
+            var fireball = new Fireball();
+            fireball.position = players[socketName].position;
+            var moveVector = sub(point, players[socketName].position);
+            fireball.velocity = mult(normalize(moveVector), 5);
+            fireball.position = add(fireball.position, mult(fireball.velocity, 4));
+            fireball.rotation = Math.atan2(fireball.velocity.y, fireball.velocity.x);
+
+            fireballs[fireballId] = fireball;
+            manager.sockets.emit("new fireball", { rotation: fireball.rotation, id: fireballId, position: fireball.position });
+
+            fireballId++;
+
+            lastShot = Date.now();
+        }
     });
 });
 
@@ -170,5 +253,9 @@ function sub(vec1, vec2) {
 
 function add(vec1, vec2) {
     return new Point(vec1.x + vec2.x, vec1.y + vec2.y);
+}
+
+function normalize(vec) {
+    return div(vec, magnitude(vec));
 }
 

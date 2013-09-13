@@ -68,14 +68,35 @@ var Player = (function () {
             _this.visual.position.x = pos.x;
             _this.visual.position.y = pos.y;
         };
+        this.incrementPosition = function (pos) {
+            _this.visual.position.x += pos.x;
+            _this.visual.position.y += pos.y;
+        };
     }
     return Player;
 })();
 
+var Fireball = (function () {
+    function Fireball() {
+        var _this = this;
+        this.setPosition = function (pos) {
+            _this.visual.position.x = pos.x;
+            _this.visual.position.y = pos.y;
+        };
+    }
+    return Fireball;
+})();
+
 var players = {};
 
+var fireballs = {};
+
 var stage = new PIXI.Stage(0x000000, true);
+var world = new PIXI.DisplayObjectContainer();
+stage.addChild(world);
 var renderer = PIXI.autoDetectRenderer(window.innerWidth - 30, window.innerHeight - 30, null, false, true);
+world.position.x = renderer.view.width / 2;
+world.position.y = renderer.view.height / 2;
 document.body.appendChild(renderer.view);
 
 socket.on("new player", function (update) {
@@ -88,19 +109,50 @@ socket.on("new player", function (update) {
     player.visual.endFill();
     players[update.name] = player;
 
-    stage.addChild(player.visual);
+    world.addChild(player.visual);
 });
 
 socket.on("position", function (update) {
     players[update.name].setPosition(update.position);
 });
 
-var mouse = new PIXI.InteractionManager(stage).mouse;
+socket.on("remove player", function (name) {
+    world.removeChild(players[name].visual);
+    delete players[name];
+});
+
+socket.on("new fireball", function (update) {
+    var fireball = new Fireball();
+    fireball.visual = new PIXI.Graphics();
+    fireball.visual.beginFill(0xFFFF00);
+    fireball.visual.drawCircle(0, 0, 10);
+    fireball.visual.moveTo(0, -10);
+    fireball.visual.lineTo(-20, 0);
+    fireball.visual.lineTo(0, 10);
+    fireball.visual.lineTo(0, -10);
+    fireball.visual.endFill();
+    fireball.visual.rotation = update.rotation;
+    fireball.setPosition(update.position);
+    fireballs[update.id] = fireball;
+
+    world.addChild(fireball.visual);
+});
+
+socket.on("fireball position", function (update) {
+    fireballs[update.id].setPosition(update.position);
+});
+
+socket.on("remove fireball", function (id) {
+    world.removeChild(fireballs[id].visual);
+    delete fireballs[id];
+});
 
 stage.click = function (data) {
-    var pos = data.getLocalPosition(stage);
+    var pos = data.getLocalPosition(world);
     if (data.originalEvent.button === 2) {
         socket.emit("destination", new Point(pos.x, pos.y));
+    } else if (data.originalEvent.button === 0) {
+        socket.emit("fire", new Point(pos.x, pos.y));
     }
 };
 
