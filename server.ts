@@ -9,6 +9,17 @@ import express = require("express");
 
 var tick = function () {
 	var startTime = Date.now();
+	for (var key1 in players) {
+		for (var key2 in players) {
+			if (key1 === key2) break;
+			if (distance(players[key1].position, players[key2].position) < 20) {
+				var vec = mult(normalize(sub(players[key1].position, players[key2].position)), 3);
+				var temp = add(players[key1].velocity, mult(vec, -1));
+				players[key1].velocity = add(players[key2].velocity, vec);
+				players[key2].velocity = temp;
+			}
+		}
+	}
 	for (var key in players) {
 		players[key].onUpdate();
 	}
@@ -40,6 +51,31 @@ var tick = function () {
 			}
 			manager.sockets.emit("remove fireball", id);
 			delete fireballs[id];
+		} else {
+			var explosion: Point;
+			for (var id2 in fireballs) {
+				if (id === id2) continue;
+				var vec = sub(fireballs[id2].position, fireballs[id].position);
+				var dist = magnitude(vec);
+				if (dist < 20) {
+					explosion = add(fireballs[id].position, div(vec, 2));
+					manager.sockets.emit("remove fireball", id);
+					manager.sockets.emit("remove fireball", id2);
+					delete fireballs[id];
+					delete fireballs[id2];
+					break;
+				}
+			}
+			if (explosion !== undefined) {
+				for (var key in players) {
+					var vec = sub(players[key].position, explosion)
+					var dist = magnitude(vec);
+					if (dist < 20) dist = 20;
+					if (dist < 200) {
+						players[key].velocity = add(players[key].velocity, mult(normalize(vec), 1000 / dist));
+					}
+				}
+			}
 		}
 	}
 	var timeTaken = Date.now() - startTime;
