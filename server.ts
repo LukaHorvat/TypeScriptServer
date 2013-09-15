@@ -13,7 +13,7 @@ var tick = function () {
 		for (var key2 in players) {
 			if (key1 === key2) break;
 			if (distance(players[key1].position, players[key2].position) < 20) {
-				var vec = mult(normalize(sub(players[key1].position, players[key2].position)), 3);
+				var vec = mult(normalize(sub(players[key1].position, players[key2].position)), 5);
 				var temp = add(players[key1].velocity, mult(vec, -1));
 				players[key1].velocity = add(players[key2].velocity, vec);
 				players[key2].velocity = temp;
@@ -97,6 +97,8 @@ class Point {
 	x: number;
 	y: number;
 
+	static zero: Point = new Point(0, 0);
+
 	constructor(ax: number, ay: number) {
 		this.x = ax;
 		this.y = ay;
@@ -151,6 +153,7 @@ manager.set("log level", 1);
 manager.sockets.on("connection", function (socket) {
 	var socketName: string;
 	var destination: Point;
+	var orderedVelocity: Point;
 
 	var lastShot: number = 0;
 
@@ -160,18 +163,23 @@ manager.sockets.on("connection", function (socket) {
 		var speed = magnitude(velocity);
 		if (destination !== undefined) {
 			var moveVector = sub(destination, player.position);
-			velocity = add(velocity, mult(normalize(moveVector), 0.3));
+			var orderedVelocity = mult(normalize(moveVector), 5);
 
 			if (distance(player.position, destination) < 10) destination = undefined;
-			if (speed > 4) {
-				velocity = sub(velocity, mult(div(velocity, speed), 0.4));
-			}
 		} else {
+			orderedVelocity = new Point(0, 0);
 			if (speed > 0.5) {
 				velocity = sub(velocity, mult(div(velocity, speed), 0.3));
-			} else velocity = new Point(0, 0);
+			} else velocity = Point.zero;
 		}
-		player.position = add(player.position, velocity);
+		if (velocity !== Point.zero) {
+			var normal = normalize(velocity);
+			var product = dot(normal, orderedVelocity) / 10;
+			if (product < 0) {
+				velocity = add(velocity, mult(normal, product));
+			}
+		}
+		player.position = add(add(player.position, velocity), orderedVelocity);
 		manager.sockets.emit("position", { name: socketName, position: player.position });
 
 		player.velocity = velocity;
@@ -210,12 +218,13 @@ manager.sockets.on("connection", function (socket) {
 	});
 
 	socket.on("fire", function (point: Point) {
-		if (Date.now() - lastShot > 1000) {
+		if (Date.now() - lastShot > 500) {
 			var fireball = new Fireball();
 			fireball.position = players[socketName].position;
 			var moveVector = sub(point, players[socketName].position);
-			fireball.velocity = mult(normalize(moveVector), 5);
-			fireball.position = add(fireball.position, mult(fireball.velocity, 4));
+			var normal = normalize(moveVector);
+			fireball.velocity = mult(normal, 10);
+			fireball.position = add(fireball.position, mult(normal, 20));
 			fireball.rotation = Math.atan2(fireball.velocity.y, fireball.velocity.x);
 
 			fireballs[fireballId] = fireball;
@@ -286,4 +295,8 @@ function add(vec1: Point, vec2: Point): Point {
 
 function normalize(vec: Point): Point {
 	return div(vec, magnitude(vec));
+}
+
+function dot(vec1: Point, vec2: Point) {
+	return vec1.x * vec2.x + vec1.y * vec2.y;
 }
