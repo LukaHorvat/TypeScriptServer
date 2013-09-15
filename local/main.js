@@ -91,6 +91,17 @@ var players = {};
 
 var fireballs = {};
 
+var originalGrid = [];
+var workingGrid = [];
+
+for (var i = 0; i < 20; ++i) {
+    for (var j = 0; j < 20; ++j) {
+        var pt = new Point(i * 50 - 500, j * 50 - 500);
+        originalGrid.push(pt);
+        workingGrid.push(pt);
+    }
+}
+
 var stage = new PIXI.Stage(0x000000, true);
 var world = new PIXI.DisplayObjectContainer();
 stage.addChild(world);
@@ -158,11 +169,77 @@ stage.click = function (data) {
 
 var startTime = Date.now();
 
+var gridGraphics = new PIXI.Graphics();
+world.addChild(gridGraphics);
+
 function tick() {
     if (disconnected)
         return;
+
+    for (var i = 0; i < 20 * 20; ++i) {
+        workingGrid[i] = originalGrid[i];
+    }
+
+    for (var id in fireballs) {
+        for (var i = 0; i < 20 * 20; ++i) {
+            var fireball = new Point(fireballs[id].visual.position.x, fireballs[id].visual.position.y);
+            var dist = distance(fireball, workingGrid[i]);
+            if (dist > 200)
+                continue;
+            var move = sub(fireball, workingGrid[i]);
+            workingGrid[i] = add(workingGrid[i], mult(div(move, 200), 200 - dist));
+        }
+    }
+
+    gridGraphics.clear();
+    gridGraphics.lineStyle(1, 0xAAAAAA, 0.3);
+    for (var i = 0; i < 20; ++i) {
+        for (var j = 1; j < 20; ++j) {
+            gridGraphics.moveTo(workingGrid[i * 20 + j - 1].x, workingGrid[i * 20 + j - 1].y);
+            gridGraphics.lineTo(workingGrid[i * 20 + j].x, workingGrid[i * 20 + j].y);
+        }
+    }
+    for (var i = 0; i < 20; ++i) {
+        for (var j = 1; j < 20; ++j) {
+            gridGraphics.moveTo(workingGrid[i + j * 20 - 20].x, workingGrid[i + j * 20 - 20].y);
+            gridGraphics.lineTo(workingGrid[i + j * 20].x, workingGrid[i + j * 20].y);
+        }
+    }
+
     requestAnimFrame(tick);
 
     // render the stage
     renderer.render(stage);
+}
+
+function distance(a, b) {
+    return Math.sqrt(Math.pow(a.x - b.x, 2) + Math.pow(a.y - b.y, 2));
+}
+
+function magnitude(vec) {
+    return Math.sqrt(vec.x * vec.x + vec.y * vec.y);
+}
+
+function div(vec, x) {
+    return new Point(vec.x / x, vec.y / x);
+}
+
+function mult(vec, x) {
+    return new Point(vec.x * x, vec.y * x);
+}
+
+function sub(vec1, vec2) {
+    return new Point(vec1.x - vec2.x, vec1.y - vec2.y);
+}
+
+function add(vec1, vec2) {
+    return new Point(vec1.x + vec2.x, vec1.y + vec2.y);
+}
+
+function normalize(vec) {
+    return div(vec, magnitude(vec));
+}
+
+function dot(vec1, vec2) {
+    return vec1.x * vec2.x + vec1.y * vec2.y;
 }
