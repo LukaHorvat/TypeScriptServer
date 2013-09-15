@@ -29,8 +29,6 @@ var tick = function () {
             manager.sockets.emit("remove fireball", id);
             delete fireballs[id];
             continue;
-        } else {
-            manager.sockets.emit("fireball position", { position: fireballs[id].position, id: id });
         }
         var distanceCache = [];
         var kill = false;
@@ -84,6 +82,21 @@ var tick = function () {
 };
 tick();
 
+var serverUpdate = function () {
+    var startTime = Date.now();
+
+    for (var id in fireballs) {
+        manager.sockets.emit("fireball position", { position: fireballs[id].position, id: id });
+    }
+    for (var key in players) {
+        manager.sockets.emit("position", { name: key, position: players[key].position });
+    }
+
+    var timeTaken = Date.now() - startTime;
+    setTimeout(serverUpdate, 30 - timeTaken);
+};
+serverUpdate();
+
 var app = express();
 app.use(express.static(__dirname + "/local"));
 
@@ -133,7 +146,6 @@ dummy.onUpdate = function () {
     } else
         velocity = new Point(0, 0);
     player.position = add(player.position, velocity);
-    manager.sockets.emit("position", { name: "dummy", position: player.position });
 
     player.velocity = velocity;
 };
@@ -177,7 +189,6 @@ manager.sockets.on("connection", function (socket) {
             }
         }
         player.position = add(add(player.position, velocity), orderedVelocity);
-        manager.sockets.emit("position", { name: socketName, position: player.position });
 
         player.velocity = velocity;
     };
