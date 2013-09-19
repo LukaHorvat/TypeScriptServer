@@ -35,7 +35,7 @@ var tick = function () {
         for (var key in players) {
             var vec = sub(players[key].position, fireballs[id].position);
             var dist = magnitude(vec);
-            if (dist < 20) {
+            if (dist < 20 && fireballs[id].source !== key) {
                 kill = true;
                 distanceCache.push({ key: key, distance: 20, vector: normalize(vec) });
             } else if (dist < 100)
@@ -86,7 +86,7 @@ var serverUpdate = function () {
     var startTime = Date.now();
 
     for (var id in fireballs) {
-        manager.sockets.emit("fireball position", { position: fireballs[id].position, id: id });
+        manager.sockets.emit("fireball position", { position: fireballs[id].position, id: id, rotation: fireballs[id].rotation });
     }
     for (var key in players) {
         manager.sockets.emit("position", { name: key, position: players[key].position });
@@ -126,6 +126,8 @@ var Fireball = (function () {
     function Fireball() {
         var _this = this;
         this.onUpdate = function () {
+            _this.velocity = add(_this.velocity, new Point(Math.cos(_this.direction), Math.sin(_this.direction)));
+            _this.rotation = Math.atan2(_this.velocity.y, _this.velocity.x);
             _this.position = add(_this.position, _this.velocity);
         };
     }
@@ -231,12 +233,13 @@ manager.sockets.on("connection", function (socket) {
             fireball.position = players[socketName].position;
             var moveVector = sub(point, players[socketName].position);
             var normal = normalize(moveVector);
-            fireball.velocity = mult(normal, 10);
+            fireball.velocity = add(players[socketName].velocity, orderedVelocity ? orderedVelocity : new Point(0, 0));
             fireball.position = add(fireball.position, mult(normal, 20));
-            fireball.rotation = Math.atan2(fireball.velocity.y, fireball.velocity.x);
+            fireball.direction = Math.atan2(normal.y, normal.x);
+            fireball.source = socketName;
 
             fireballs[fireballId] = fireball;
-            manager.sockets.emit("new fireball", { rotation: fireball.rotation, id: fireballId, position: fireball.position });
+            manager.sockets.emit("new fireball", { rotation: fireball.direction, id: fireballId, position: fireball.position });
 
             fireballId++;
 

@@ -35,7 +35,7 @@ var tick = function () {
 		for (var key in players) {
 			var vec = sub(players[key].position, fireballs[id].position);
 			var dist = magnitude(vec);
-			if (dist < 20) {
+			if (dist < 20 && fireballs[id].source !== key) {
 				kill = true;
 				distanceCache.push({ key: key, distance: 20, vector: normalize(vec) });
 			}
@@ -84,7 +84,7 @@ var serverUpdate = function() {
 	var startTime = Date.now();
 
 	for (var id in fireballs) {
-		manager.sockets.emit("fireball position", { position: fireballs[id].position, id: id });
+		manager.sockets.emit("fireball position", { position: fireballs[id].position, id: id, rotation: fireballs[id].rotation });
 	}
 	for (var key in players) {
 		manager.sockets.emit("position", { name: key, position: players[key].position });
@@ -127,8 +127,12 @@ class Player {
 class Fireball {
 	position: Point;
 	rotation: number;
+	direction: number;
 	velocity: Point;
+	source: string;
 	onUpdate = () => {
+		this.velocity = add(this.velocity, new Point(Math.cos(this.direction), Math.sin(this.direction)));
+		this.rotation = Math.atan2(this.velocity.y, this.velocity.x);
 		this.position = add(this.position, this.velocity);
 	}
 }
@@ -233,12 +237,13 @@ manager.sockets.on("connection", function (socket) {
 			fireball.position = players[socketName].position;
 			var moveVector = sub(point, players[socketName].position);
 			var normal = normalize(moveVector);
-			fireball.velocity = mult(normal, 10);
+			fireball.velocity = add(players[socketName].velocity, orderedVelocity ? orderedVelocity : new Point(0, 0));
 			fireball.position = add(fireball.position, mult(normal, 20));
-			fireball.rotation = Math.atan2(fireball.velocity.y, fireball.velocity.x);
+			fireball.direction = Math.atan2(normal.y, normal.x);
+			fireball.source = socketName;
 
 			fireballs[fireballId] = fireball;
-			manager.sockets.emit("new fireball", { rotation: fireball.rotation, id: fireballId, position: fireball.position });
+			manager.sockets.emit("new fireball", { rotation: fireball.direction, id: fireballId, position: fireball.position });
 
 			fireballId++;
 

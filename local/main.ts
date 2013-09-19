@@ -115,8 +115,9 @@ socket.on("new fireball", function (update) {
 	world.addChild(fireball.visual);
 });
 
-socket.on("fireball position", function (update: { id: number; position: Point }) {
+socket.on("fireball position", function (update: { id: number; position: Point; rotation: number }) {
 	fireballs[update.id].setPosition(update.position);
+	fireballs[update.id].visual.rotation = update.rotation;
 });
 
 socket.on("remove fireball", function (id: number) {
@@ -152,7 +153,8 @@ function tick() {
 			var dist = distance(fireball, workingGrid[i]);
 			if (dist > 200) continue;
 			var move = sub(fireball, workingGrid[i]);
-			workingGrid[i] = add(workingGrid[i], mult(div(move, 200), 200 - dist));
+			var factor = Math.pow(1 - dist / 200, 2);
+			workingGrid[i] = add(workingGrid[i], mult(move, factor));
 		}
 	}
 
